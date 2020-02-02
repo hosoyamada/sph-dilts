@@ -622,13 +622,13 @@ program test
 
   do k = 1 , NP
     do j = 1 , NT
-      f_raw(j,k) = sfield(R_INDEX,j,k)
-!     theta = dtht*(j-1)
-!     phi   = dphi*(k-1)
+!     f_raw(j,k) = sfield(R_INDEX,j,k)
+      theta = dtht*(j-1)
+      phi   = dphi*(k-1)
 !     call ut__legendren(10,3,cos(theta),legendre)
 !     f_raw(j,k) = legendre*cos(3*phi)
-!     call ut__legendren(1,0,cos(theta),legendre)
-!     f_raw(j,k) = legendre*cos(0*phi) 
+      call ut__legendren(2,1,cos(theta),legendre)
+      f_raw(j,k) = legendre*cos(1*phi) 
 !     call ut__legendren(5,3,cos(theta),legendre)
 !     f(j,k) = f(j,k) + legendre*cos(3*phi) * 0.3_DR
 !     f(j,k) = cos(theta)*cos(m*phi)
