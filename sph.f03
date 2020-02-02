@@ -591,7 +591,7 @@ program test
   integer, parameter :: R_INDEX = nint(real(NR)*0.5_DR)
   
   type(sph_t) :: sph
-  integer, parameter :: NN=2**6 ! power of 2.
+  integer, parameter :: NN=2**7 ! power of 2.
   integer, parameter :: LAT=NN+1
   integer, parameter :: LON=NN*2
   integer :: j, k, l, m, lm, max_l
@@ -614,19 +614,21 @@ program test
   print *, "### read_file started"
   !open(11, file="./input/rad0.9@eMar03c.005.sfield.vr.n001575375.t00190", status="old")
   open(11, file="input/eMar03c.005.sfield.br.n001575375.t00190", form="unformatted", status="old")
+  !open(11, file="input/eMar03c.005.sfield.vr.n001575375.t00190", form="unformatted", status="old")
+  !open(11, file="input/eMar03c.000.sfield.bp.n000000000.t00000", form="unformatted", status="old")
   read(11)   sfield
   close(11)
   print *, "R_INDEX = ", R_INDEX
 
   do k = 1 , NP
     do j = 1 , NT
-!     f_raw(j,k) = sfield(R_INDEX,j,k)
-      theta = dtht*(j-1)
-      phi   = dphi*(k-1)
+      f_raw(j,k) = sfield(R_INDEX,j,k)
+!     theta = dtht*(j-1)
+!     phi   = dphi*(k-1)
 !     call ut__legendren(10,3,cos(theta),legendre)
 !     f_raw(j,k) = legendre*cos(3*phi)
-      call ut__legendren(1,0,cos(theta),legendre)
-      f_raw(j,k) = legendre*cos(0*phi) 
+!     call ut__legendren(1,0,cos(theta),legendre)
+!     f_raw(j,k) = legendre*cos(0*phi) 
 !     call ut__legendren(5,3,cos(theta),legendre)
 !     f(j,k) = f(j,k) + legendre*cos(3*phi) * 0.3_DR
 !     f(j,k) = cos(theta)*cos(m*phi)
@@ -675,25 +677,23 @@ program test
       lm = sph__lm2lm(l,m)
       !if ( abs(ff(lm))>1.e-5 ) then
         print *, l,m,ff(lm),abs(ff(lm))
+        write(12,*) l, m, abs(ff(lm))
         if(m==0) then
-         write(12,*) l, m, abs(ff(lm))
-        end if
-        if(m==1) then
          write(13,*) l, abs(ff(lm))
         end if
-        if(m==2) then
+        if(m==1) then
          write(14,*) l, abs(ff(lm))
         end if
-        if(m==3) then
+        if(m==2) then
          write(15,*) l, abs(ff(lm))
         end if
-        if(m==4) then
+        if(m==3) then
          write(16,*) l, abs(ff(lm))
         end if
-        if(m==5) then
+        if(m==4) then
          write(17,*) l, abs(ff(lm))
         end if
-        if(m==6) then
+        if(m==5) then
          write(18,*) l, abs(ff(lm))
         end if
       !end if
