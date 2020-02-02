@@ -570,117 +570,323 @@ contains
   end subroutine sph_t__initialize
 
 end module sph_m
-!
-!
-!program test
-!  use sph_m
-!  implicit none
-!
-!  integer,  parameter :: DR = selected_real_kind(15)
-!  real(DR), parameter :: PI = 3.1415926535897932_DR
-!  real(DR), parameter :: TWOPI = PI*2
-!
-!  type(sph_t) :: sph
-!  integer, parameter :: NN=2**5 ! power of 2.
-!  integer, parameter :: LAT=NN+1 
-!  integer, parameter :: LON=NN*2
-!  integer :: j, k, l, m, lm, max_l
-!  real(DR) :: dtht, dphi, theta, phi, sum
-!  real(DR) :: error, max_f, max_s, max_e
-!  real(DR) :: f(LAT,LON)
-!  complex(DR), allocatable :: ff(:)
-!
-!  dtht = PI / (LAT-1)
-!  dphi = TWOPI / LON
-!
-!  call sph%initialize(nn=NN,lat=LAT,lon=LON)
-!
-!
-!  ! --- test 01 ---
-!  do k = 1 , LON
-!    do j = 1 , LAT
-!      theta = dtht*(j-1)
-!      phi   = dphi*(k-1)
-!      f(j,k) = test_plm(cos(theta))*cos(3*phi)
-!!     f(j,k) = cos(theta)*cos(m*phi)
-!!     f(j,k) = 1.0_DR
+
+
+program test
+  use sph_m
+  implicit none
+
+  integer,  parameter :: DR = selected_real_kind(15)
+  integer,  parameter :: SP = kind(1.0)
+  real(DR), parameter :: PI = 3.1415926535897932_DR
+  real(DR), parameter :: TWOPI = PI*2
+
+  integer, parameter :: NR = 124
+  integer, parameter :: NT = 162
+  integer, parameter :: NP = 322
+  !integer, parameter :: NR = 2**6
+  !integer, parameter :: NT = NR+1 
+  !integer, parameter :: NP = NR*2
+  real(SP) :: sfield(NR,NT,NP)
+  integer, parameter :: R_INDEX = nint(real(NR)*0.5_DR)
+  
+  type(sph_t) :: sph
+  integer, parameter :: NN=2**6 ! power of 2.
+  integer, parameter :: LAT=NN+1
+  integer, parameter :: LON=NN*2
+  integer :: j, k, l, m, lm, max_l
+  !real(DR) :: dtht, dphi, theta, phi, sum
+  real(DR) :: dtht, dphi, theta, phi, sum, cull_rate_lat, cull_rate_lon
+  !real(DR) :: theta(LAT_RAW), phi(LON_RAW)
+  real(DR) :: error, max_f, max_s, max_e
+  real(DR) :: f_raw(NT,NP), f(LAT, LON)
+  real(DR) :: legendre 
+  complex(DR), allocatable :: ff(:)
+  character(2) s
+
+  dtht = PI / (LAT-1)
+  dphi = TWOPI / LON
+
+  print *, "### sph%initialize started"
+  call sph%initialize(nn=NN,lat=LAT,lon=LON)
+  
+  ! --- read file ---
+  print *, "### read_file started"
+  !open(11, file="./input/rad0.9@eMar03c.005.sfield.vr.n001575375.t00190", status="old")
+  open(11, file="input/eMar03c.005.sfield.br.n001575375.t00190", form="unformatted", status="old")
+  read(11)   sfield
+  close(11)
+  print *, "R_INDEX = ", R_INDEX
+
+  do k = 1 , NP
+    do j = 1 , NT
+!     f_raw(j,k) = sfield(R_INDEX,j,k)
+      theta = dtht*(j-1)
+      phi   = dphi*(k-1)
+!     call ut__legendren(10,3,cos(theta),legendre)
+!     f_raw(j,k) = legendre*cos(3*phi)
+      call ut__legendren(1,0,cos(theta),legendre)
+      f_raw(j,k) = legendre*cos(0*phi) 
+!     call ut__legendren(5,3,cos(theta),legendre)
+!     f(j,k) = f(j,k) + legendre*cos(3*phi) * 0.3_DR
+!     f(j,k) = cos(theta)*cos(m*phi)
+!     f(j,k) = cos(theta)*cos(3*phi)
+!     f_raw(j,k) = 1.0_DR
+      !print *, f_raw(j,k)
+    end do
+  end do
+  print *, "### read_file ended"
+
+  print *, "### interpolate_data start"
+  call liner_interpolation(f_raw,f)
+  print *, "### interpolate_data ended"
+
+  ! --- cull data to apply NN=2**x  ---
+!  print *, "### cull data started"
+!  cull_rate_lat = real(NT)/real(LAT)   ! NT > LAT
+!  cull_rate_lon = real(NP)/real(LON)   ! NP > LON
+!  print *, "cull_rate_lat, cull_rate_lon", cull_rate_lat, cull_rate_lon
+!  do k = 1, LON
+!    do j = 1, LAT
+!      f(j,k) = f_raw(nint(cull_rate_lat*j),nint(cull_rate_lon*k))
+!      !print *, f(j,k)
 !    end do
 !  end do
-!
-!  max_l = sph%get_int("max_mode_l")
-!  allocate(ff(0:sph__lm2lm(max_l,max_l)))
-!
-!  ff = sph%expand(NN,LAT,LON,f)
-!
-!  do l = 0 , max_l
-!    do m = -l , l
-!      lm = sph__lm2lm(l,m)
+!  print *, "### cull data ended"
+
+  max_l = sph%get_int("max_mode_l")
+  allocate(ff(0:sph__lm2lm(max_l,max_l)))
+
+  print *, "### expand_data start"
+  ff = sph%expand(NN,LAT,LON,f)
+  print *, "### expand_data ended"
+
+  open(12, file="./output/expanded3D.dat", status="replace")
+  open(13, file="./output/expandedM0.dat", status="replace")
+  open(14, file="./output/expandedM1.dat", status="replace")
+  open(15, file="./output/expandedM2.dat", status="replace")
+  open(16, file="./output/expandedM3.dat", status="replace")
+  open(17, file="./output/expandedM4.dat", status="replace")
+  open(18, file="./output/expandedM5.dat", status="replace")
+  do l = 0 , max_l
+    do m = -l , l
+      !write(s,'(i2)') m
+      !open(12, file="./output/expandedM=" // s // ".dat", status="replace")
+      lm = sph__lm2lm(l,m)
+      !if ( abs(ff(lm))>1.e-5 ) then
+        print *, l,m,ff(lm),abs(ff(lm))
+        if(m==0) then
+         write(12,*) l, m, abs(ff(lm))
+        end if
+        if(m==1) then
+         write(13,*) l, abs(ff(lm))
+        end if
+        if(m==2) then
+         write(14,*) l, abs(ff(lm))
+        end if
+        if(m==3) then
+         write(15,*) l, abs(ff(lm))
+        end if
+        if(m==4) then
+         write(16,*) l, abs(ff(lm))
+        end if
+        if(m==5) then
+         write(17,*) l, abs(ff(lm))
+        end if
+        if(m==6) then
+         write(18,*) l, abs(ff(lm))
+        end if
+      !end if
+      !close(12)
 !      if ( abs(ff(lm))>1.e-5 ) then
-!        print *,l,m,ff(lm)
+!       print *,l,m,ff(lm)
 !      end if
-!    end do
-!  end do
+    end do
+    write(12,*)
+  end do
+  close(12)
+
+!   ! --- test 02 ---
+!   l = 9
+!   m = 2
+!   do k = 1 , LON
+!     do j = 1 , LAT
+!       theta = dtht*(j-1)
+!       phi   = dphi*(k-1)
+!       f(j,k) = sph%plm_norm(l,m,theta)*sin(m*phi)
+!     end do
+!   end do
+! 
+!   ff = sph%expand(NN,LAT,LON,f)
+! 
+!   do l = 0 , max_l
+!     do m = -l , l
+!       lm = sph__lm2lm(l,m)
+!       if ( abs(ff(lm))>1.e-5 ) then
+!         print *,l,m,ff(lm)
+!       end if
+!     end do
+!   end do
+
+  ! Check if input is recovered by inverse spherical exp.
+  max_f = 0.0_DR
+  max_s = 0.0_DR
+  max_e = 0.0_DR
+  do j = 1 , LAT
+    do k = 1 , lon
+      sum = 0.0_DR
+      do l = 0 , max_l
+        do m = -l , l
+          lm = sph__lm2lm(l,m)
+          sum = sum + ff(lm)*sph%ylm(lm,j,k)
+        end do
+      end do
+      error = f(j,k) - sum
+      max_f = max(max_f, abs(f(j,k)))
+      max_s = max(max_s, abs(sum))
+      max_e = max(max_e, abs(error))
+    end do
+  end do
+  print *, 'max of f, s, error = ', max_f, max_s, max_e
+
+
+contains
+  subroutine liner_interpolation(f_,f)
+    real(DR), intent(in)  :: f_(:,:)
+    real(DR), intent(out) :: f(:,:)
+    !real, parameter :: PI=3.14159265
+    integer :: j_,k_,j,k,count_j,count_k
+    integer :: north,south,west,east
+    real(DR) :: dt_,dp_,dt,dp
+    real(DR) :: theta, phi
+    real(DR) :: theta_1, phi_1, theta_2, phi_2
+    real(DR) :: alpha, beta
+
+    dt_ = PI/(NT-1)
+    dp_ = TWOPI/NP
+    dt  = PI/(LAT-1)
+    dp  = TWOPI/LON
+    count_j = 1
+    count_k = 1
+
+    do j=1, LAT
+      do k=1, LON
+        theta = dt*real(j-1)
+        phi   = dp*real(k-1)
+        north=-1
+        west=-1
+        ! find neighbors
+        do j_ = 1, NT
+          theta_1 = dt_*real(j_-1)
+          theta_2 = dt_*real(j_)
+          if(theta_1 <= theta .and. &
+             theta <= theta_2) then
+             alpha = (theta-theta_1)/dt_
+             north=j_
+             south=j_+1
+             exit
+          end if
+        end do
+        do k_ = 1, NP
+          phi_1 = dp_*real(k_-1)
+          phi_2 = dp_*real(k_)
+          if(phi_1 <= phi .and. &
+             phi <= phi_2) then
+             beta = (phi-phi_1)/dp_
+             west=k_
+             east=k_+1
+             exit
+          end if
+        end do
+        if(north==-1 .or. west==-1) then
+          print *,"error: Not find neighbors"
+        end if
+        !print *, "LAT=", j, "LON=", k
+        !print *, "alpha=", alpha, "beta=", beta
+        !print *, "north=", north
+        !print *, "south=", south
+        !print *, "west=", west
+        !print *, "east=", east
+        ! caluculate f
+        f(j,k)=f_(north, west)*(1-alpha)*(1-beta) &
+              +f_(south, west)*alpha*(1-beta)     &
+              +f_(north, east)*(1-alpha)*beta     &
+              +f_(south, east)*alpha*beta
+      end do
+    end do
+  end subroutine liner_interpolation
+!_______________________________________________________public__
 !
-!  ! --- test 02 ---
-!  l = 9
-!  m = 2
-!  do k = 1 , LON
-!    do j = 1 , LAT
-!      theta = dtht*(j-1)
-!      phi   = dphi*(k-1)
-!      f(j,k) = sph%plm_norm(l,m,theta)*sin(m*phi)
-!    end do
-!  end do
+  subroutine ut__legendren(l,m,x,y)
+    integer, intent(in) :: l, m
+    real(DR), intent(in) :: x
+    real(DR), intent(out) :: y
+!_______________________________________________________________
 !
-!  ff = sph%expand(NN,LAT,LON,f)
+! - "legendren" stands for Legendr-normalized.
 !
-!  do l = 0 , max_l
-!    do m = -l , l
-!      lm = sph__lm2lm(l,m)
-!      if ( abs(ff(lm))>1.e-5 ) then
-!        print *,l,m,ff(lm)
-!      end if
-!    end do
-!  end do
+! - Calculates the normalized associated Legendre function
+!                                          $C_{lm}{P_l}^m$.
+! - Reference: Numerical Recipe in C, Chapter 6 p254
 !
-!  ! Check if input is recovered by inverse spherical exp.
-!  max_f = 0.0_DR
-!  max_s = 0.0_DR
-!  max_e = 0.0_DR
-!  do j = 1 , LAT
-!    do k = 1 , lon
-!      sum = 0.0_DR
-!      do l = 0 , max_l
-!        do m = -l , l
-!          lm = sph__lm2lm(l,m)
-!          sum = sum + ff(lm)*sph%ylm(lm,j,k)
-!        end do
-!      end do
-!      error = f(j,k) - sum
-!      max_f = max(max_f, abs(f(j,k)))
-!      max_s = max(max_s, abs(sum))
-!      max_e = max(max_e, abs(error))
-!    end do
-!  end do
-!  print *, 'max of f, s, error = ', max_f, max_s, max_e
+!       0 <= m <= l,  -1. <= x <= 1.
+!_______________________________________________________________/
 !
-!
-!contains
-!
-!  function test_plm(x) result(y)
-!    real(DR), intent(in) :: x
-!    real(DR) :: y, fact
-!    integer  :: i, l, m
-!    l = 10
-!    m = 3
-!    ! P_l^m = P_10^3
-!     y = 6435.0_DR/16*Sqrt(1-x**2)*(-1+x**2)*(-7*x+105*x**3-357*x**5+323*x**7)
-!
-!    fact = 1.0_DR
-!    do i = l-m+1 , l+m
-!      fact = fact * real(i,DR)
-!    end do
-!    fact = sqrt((2*l+1)/(PI*4)/fact)
-!    y = fact*y
-!  end function test_plm
-!end program test
+
+    real(DR) :: pmm, fact, fact1, fact2, pll, pmmp1, somx2
+    integer :: ll, i
+
+    pmm = 1.0_DR
+
+    if (m>0) then
+       somx2 = sqrt((1.0_DR-x)*(1.0_DR+x))
+       do i = 1, m
+          ! Note the sign before the fact. This definition follows "Recipe".
+          fact = sqrt(real(2*i-1,DR)/real(2*i,DR))
+          pmm = -fact * somx2 * pmm
+       end do
+       pmm = pmm * sqrt(real(2*m+1,DR)/(4*PI))
+    else
+       pmm = sqrt(1.0_DR/(4*PI))
+    end if
+
+    if (l==m) then
+       y = pmm
+    else
+       pmmp1 = x * sqrt(real(2*m+3,DR)) * pmm
+       if (l==m+1) then
+          y = pmmp1
+       else
+          do ll = m+2, l
+             fact1 = sqrt( (real(2*ll+1,DR)*real(ll-m,DR)) &
+                         / (real(2*ll-1,DR)*real(ll+m,DR)) &
+                         )
+             fact2 = sqrt( (real(2*ll+1,DR)*real(ll-m,DR)*real(ll-m-1,DR)) &
+                         / (real(2*ll-3,DR)*real(ll+m,DR)*real(ll+m-1,DR)) &
+                         )
+             pll = ( x*real(2*ll-1,DR)*fact1*pmmp1  &
+                     - real(ll+m-1,DR)*fact2*pmm ) / real(ll-m,DR)
+             pmm = pmmp1
+             pmmp1 = pll
+          end do
+          y = pll
+       endif
+    endif
+
+  end subroutine ut__legendren
+
+  function test_plm(x,l,m) result(y)
+    real(DR), intent(in) :: x
+    real(DR) :: y, fact
+    integer  :: i, l, m
+    ! P_l^m = P_10^3
+     y = 6435.0_DR/16*Sqrt(1-x**2)*(-1+x**2)*(-7*x+105*x**3-357*x**5+323*x**7)
+
+    fact = 1.0_DR
+    do i = l-m+1 , l+m
+      fact = fact * real(i,DR)
+    end do
+    fact = sqrt((2*l+1)/(PI*4)/fact)
+    y = fact*y
+  end function test_plm
+end program test
